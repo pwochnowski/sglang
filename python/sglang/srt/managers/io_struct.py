@@ -1406,6 +1406,28 @@ class UpdateWeightsFromTensorReqOutput(BaseReq):
 
 
 @dataclass
+class UpdateWeightsFromTensorVMMReqInput(BaseReq):
+    # device UUID -> UDS path for fd transport via SCM_RIGHTS
+    uds_paths: Dict[str, str]
+    # device UUID -> VMM buffer size in bytes (granularity-rounded)
+    buffer_sizes: Dict[str, int]
+    # Flattened tensor metadata: [{name, shape, dtype, start_idx, end_idx}]
+    tensor_metadata: List[Dict[str, Any]]
+    # Whether to flush cache after weight update
+    flush_cache: bool = True
+    # Whether to abort all requests before updating weights
+    abort_all_requests: bool = False
+    # Optional: Update weight version along with weights
+    weight_version: Optional[str] = None
+
+
+@dataclass
+class UpdateWeightsFromTensorVMMReqOutput(BaseReq):
+    success: bool
+    message: str
+
+
+@dataclass
 class InitWeightsSendGroupForRemoteInstanceReqInput(BaseReq):
     # The master address
     master_address: str
