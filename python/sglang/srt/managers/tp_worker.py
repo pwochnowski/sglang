@@ -35,6 +35,7 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightFromDiskReqInput,
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromIPCReqInput,
+    UpdateWeightsFromTensorVMMReqInput,
     UpdateWeightsFromTensorReqInput,
 )
 from sglang.srt.managers.schedule_batch import ModelWorkerBatch, ScheduleBatch
@@ -162,6 +163,11 @@ class BaseTpWorker(ABC):
             ),
             load_format=recv_req.load_format,
         )
+        return success, message
+
+    def update_weights_from_tensor_vmm(self, recv_req: UpdateWeightsFromTensorVMMReqInput):
+        """Update weights from a VMM-backed buffer via fd transport over UDS."""
+        success, message = self.model_runner.update_weights_from_tensor_vmm(recv_req)
         return success, message
 
     def update_weights_from_ipc(self, recv_req: UpdateWeightsFromIPCReqInput):

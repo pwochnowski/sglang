@@ -133,6 +133,7 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightFromDiskReqInput,
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromIPCReqInput,
+    UpdateWeightsFromTensorVMMReqInput,
     UpdateWeightsFromTensorReqInput,
 )
 from sglang.srt.managers.mm_utils import init_mm_embedding_cache, unwrap_shm_features
@@ -1068,6 +1069,7 @@ class Scheduler(
                     self.update_weights_from_distributed,
                 ),
                 (UpdateWeightsFromTensorReqInput, self.update_weights_from_tensor),
+                (UpdateWeightsFromTensorVMMReqInput, self.update_weights_from_tensor_vmm),
                 (UpdateWeightsFromIPCReqInput, self.update_weights_from_ipc),
                 (PostProcessWeightsReqInput, self.post_process_weights),
                 (GetWeightsByNameReqInput, self.get_weights_by_name),
