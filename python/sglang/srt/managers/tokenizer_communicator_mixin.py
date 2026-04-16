@@ -80,6 +80,8 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightsFromDistributedReqOutput,
     UpdateWeightsFromIPCReqInput,
     UpdateWeightsFromIPCReqOutput,
+    UpdateWeightsFromTensorVMMReqInput,
+    UpdateWeightsFromTensorVMMReqOutput,
     UpdateWeightsFromTensorReqInput,
     UpdateWeightsFromTensorReqOutput,
 )
@@ -186,6 +188,9 @@ class TokenizerCommunicatorMixin:
         self.update_weights_from_tensor_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
+        self.update_weights_from_tensor_vmm_communicator = _Communicator(
+            self.send_to_scheduler, server_args.dp_size
+        )
         self.update_weights_from_ipc_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
@@ -272,6 +277,10 @@ class TokenizerCommunicatorMixin:
                 (
                     UpdateWeightsFromTensorReqOutput,
                     self.update_weights_from_tensor_communicator.handle_recv,
+                ),
+                (
+                    UpdateWeightsFromTensorVMMReqOutput,
+                    self.update_weights_from_tensor_vmm_communicator.handle_recv,
                 ),
                 (
                     UpdateWeightsFromIPCReqOutput,
@@ -592,6 +601,37 @@ class TokenizerCommunicatorMixin:
         )
         async with lock_context:
             results = await self.update_weights_from_tensor_communicator(obj)
+
+        success, message = _Communicator.merge_results(results)
+        if success and obj.weight_version is not None:
+            self._update_weight_version_if_provided(obj.weight_version)
+            message += f" Weight version updated to {obj.weight_version}."
+
+        return success, message
+
+    async def update_weights_from_tensor_vmm(
+        self: TokenizerManager,
+        obj: UpdateWeightsFromTensorVMMReqInput,
+        request: Optional[fastapi.Request] = None,
+    ) -> Tuple[bool, str]:
+        """Update weights from a VMM-backed buffer via fd transport over UDS."""
+        self.auto_create_handle_loop()
+        assert (
+            self.server_args.dp_size == 1 or self.server_args.enable_dp_attention
+        ), "dp_size must be 1 or dp attention must be enabled for update weights from VMM"
+
+        if obj.abort_all_requests:
+            self.abort_request(abort_all=True)
+
+        # Immediately update the weights if the engine is in paused state
+        async with self.is_pause_cond:
+            is_paused = self.is_pause
+
+        lock_context = (
+            self.model_update_lock.writer_lock if not is_paused else nullcontext()
+        )
+        async with lock_context:
+            results = await self.update_weights_from_tensor_vmm_communicator(obj)
 
         success, message = _Communicator.merge_results(results)
         if success and obj.weight_version is not None:

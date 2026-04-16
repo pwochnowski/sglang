@@ -127,6 +127,7 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightFromDiskReqInput,
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromIPCReqInput,
+    UpdateWeightsFromTensorVMMReqInput,
     UpdateWeightsFromTensorReqInput,
     UpdateWeightVersionReqInput,
     VertexGenerateReqInput,
@@ -1048,6 +1049,20 @@ async def update_weights_from_tensor(
     """
 
     success, message = await _global_state.tokenizer_manager.update_weights_from_tensor(
+        obj, request
+    )
+
+    content = {"success": success, "message": message}
+    return ORJSONResponse(
+        content, status_code=200 if success else HTTPStatus.BAD_REQUEST
+    )
+
+
+@app.post("/update_weights_from_tensor_vmm")
+@auth_level(AuthLevel.ADMIN_OPTIONAL)
+async def update_weights_from_tensor_vmm(obj: UpdateWeightsFromTensorVMMReqInput, request: Request):
+    """Update weights from a VMM-backed buffer via fd transport over UDS."""
+    success, message = await _global_state.tokenizer_manager.update_weights_from_tensor_vmm(
         obj, request
     )
 

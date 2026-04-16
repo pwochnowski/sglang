@@ -1489,6 +1489,59 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
         return True, "Success"
 
+    def update_weights_from_tensor_vmm(self, recv_req):
+        """Update weights from a VMM-backed buffer via fd transport over UDS."""
+        try:
+            from sglang.srt.weight_sync.vmm_ipc import (
+                free_vmm_buffer,
+                import_vmm_buffer,
+                open_sidecar_client,
+                recv_fd,
+                wrap_as_torch_uint8,
+            )
+
+            device = torch.cuda.current_device()
+            device_uuid = (
+                f"GPU-{torch.cuda.get_device_properties(device).uuid!s}"
+            )
+
+            uds_path = recv_req.uds_paths[device_uuid]
+            buffer_size = recv_req.buffer_sizes[device_uuid]
+
+            # Receive fd and import VMM buffer
+            sock = open_sidecar_client(uds_path)
+            fd = recv_fd(sock)
+            sock.close()
+
+            alloc = import_vmm_buffer(fd, buffer_size, device)
+            buf = wrap_as_torch_uint8(alloc)
+
+            # Reconstruct named tensors from flattened buffer metadata
+            named_tensors = []
+            for meta in recv_req.tensor_metadata:
+                t = (
+                    buf[meta["start_idx"] : meta["end_idx"]]
+                    .view(getattr(torch, meta["dtype"]))
+                    .reshape(meta["shape"])
+                )
+                named_tensors.append((meta["name"], t))
+
+            self.model.load_weights(named_tensors)
+
+            # load_weights uses copy_(), which is async on CUDA. We must
+            # wait for those copies to complete before unmapping the VMM
+            # buffer, or the in-flight kernels will read from freed VA and
+            # corrupt CUDA state (illegal memory access on next kernel).
+            torch.cuda.synchronize(device)
+
+            del named_tensors, t, buf
+            free_vmm_buffer(alloc, close_fd=True)
+
+            return True, "VMM weight update completed successfully"
+        except Exception as e:
+            logger.error(f"VMM weight update failed: {e}")
+            return False, str(e)
+
     def get_weights_by_name(
         self, name: str, truncate_size: int = 100
     ) -> Optional[torch.Tensor]:

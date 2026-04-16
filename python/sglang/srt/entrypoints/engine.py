@@ -61,6 +61,7 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightFromDiskReqInput,
     UpdateWeightsFromDistributedReqInput,
     UpdateWeightsFromIPCReqInput,
+    UpdateWeightsFromTensorVMMReqInput,
     UpdateWeightsFromTensorReqInput,
 )
 from sglang.srt.managers.multi_tokenizer_mixin import MultiTokenizerRouter
@@ -606,6 +607,15 @@ class Engine(EngineBase):
         )
         return self.loop.run_until_complete(
             self.tokenizer_manager.update_weights_from_tensor(obj, None)
+        )
+
+    def update_weights_from_tensor_vmm(
+        self,
+        obj: "UpdateWeightsFromTensorVMMReqInput",
+    ):
+        """Update weights from a VMM-backed buffer via fd transport over UDS."""
+        return self.loop.run_until_complete(
+            self.tokenizer_manager.update_weights_from_tensor_vmm(obj, None)
         )
 
     def update_weights_from_disk(

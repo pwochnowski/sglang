@@ -34,6 +34,8 @@ from sglang.srt.managers.io_struct import (
     UpdateWeightsFromDistributedReqOutput,
     UpdateWeightsFromIPCReqInput,
     UpdateWeightsFromIPCReqOutput,
+    UpdateWeightsFromTensorVMMReqInput,
+    UpdateWeightsFromTensorVMMReqOutput,
     UpdateWeightsFromTensorReqInput,
     UpdateWeightsFromTensorReqOutput,
 )
@@ -102,6 +104,21 @@ class SchedulerUpdateWeightsMixin:
             logger.error(message)
         torch.distributed.barrier(group=self.tp_cpu_group)
         return UpdateWeightsFromTensorReqOutput(success, message)
+
+    def update_weights_from_tensor_vmm(
+        self: Scheduler, recv_req: UpdateWeightsFromTensorVMMReqInput
+    ):
+        """Update weights from a VMM-backed buffer via fd transport over UDS."""
+        worker = self.draft_worker or self.tp_worker
+        success, message = worker.update_weights_from_tensor_vmm(recv_req)
+        if success:
+            if recv_req.flush_cache:
+                flush_cache_success = self.flush_cache()
+                assert flush_cache_success, "Cache flush failed after updating weights"
+        else:
+            logger.error(message)
+        torch.distributed.barrier(group=self.tp_cpu_group)
+        return UpdateWeightsFromTensorVMMReqOutput(success, message)
 
     def update_weights_from_ipc(
         self: Scheduler, recv_req: UpdateWeightsFromIPCReqInput

@@ -75,11 +75,14 @@ dependencies = [
   "uvicorn",
   "uvloop",
   "xgrammar==0.1.27",
-
   "smg-grpc-proto>=0.3.3",
   "grpcio>=1.78.0",
   "grpcio-reflection>=1.78.0",
   "grpcio-health-checking>=1.78.0",
+  "watchfiles",
+  "smg-grpc-servicer>=0.5.0",
+  "kernels",
+  "pytest>=9.0.3",
 ]
 
 [[tool.uv.index]]
