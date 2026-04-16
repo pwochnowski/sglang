@@ -14,22 +14,20 @@ RUN apt-get update && apt-get install -y sudo && \
     apt-get clean
 
 # Set up oh-my-zsh for devuser
-RUN cp -r /root/.oh-my-zsh /home/devuser/.oh-my-zsh && \
-    cp /root/.zshrc /home/devuser/.zshrc && \
-    cp /root/.vimrc /home/devuser/.vimrc && \
-    cp /root/.tmux.conf /home/devuser/.tmux.conf && \
-    sed -i 's|/root/.oh-my-zsh|/home/devuser/.oh-my-zsh|g' /home/devuser/.zshrc && \
+RUN for f in .oh-my-zsh .zshrc .vimrc .tmux.conf; do \
+        [ -e /root/$f ] && cp -r /root/$f /home/devuser/$f; \
+    done && \
+    [ -f /home/devuser/.zshrc ] && sed -i 's|/root/.oh-my-zsh|/home/devuser/.oh-my-zsh|g' /home/devuser/.zshrc; \
     chown -R devuser:devuser /home/devuser/
 
 # Set workspace directory and ownership
 WORKDIR /sgl-workspace/sglang
 RUN chown -R devuser:devuser /sgl-workspace
 
-# Switch to devuser
-USER devuser
-
 # Install uv
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+RUN curl -fsSL https://claude.ai/install.sh | sh
