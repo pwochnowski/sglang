@@ -117,7 +117,7 @@ def _convert(data):
         return data
 
 
-_image_grid_attrs = ["image_grid_thw", "image_grid_hws"]
+_image_grid_attrs = ["image_grid_thw", "image_grid_hws", "grid_thws"]
 
 
 def _get_image_grid_dim(images_input):
@@ -320,7 +320,26 @@ class MMEncoder:
 
         try:
             kwargs = {"device": self.device} if self.use_image_processor_gpu else {}
-            images_input = self.image_processor(images=images, **kwargs)
+            # Some processors (e.g., KimiK25VisionProcessor) expect MediaInput
+            # dicts rather than raw PIL Images. Wrap PIL images as needed.
+            from PIL import Image as PILImage
+
+            if (
+                isinstance(images, (list, tuple))
+                and images
+                and isinstance(images[0], PILImage.Image)
+            ):
+                import inspect
+
+                sig = inspect.signature(self.image_processor.preprocess)
+                first_param = list(sig.parameters.keys())[0]
+                if first_param == "medias":
+                    medias = [{"type": "image", "image": img} for img in images]
+                    images_input = self.image_processor.preprocess(medias, **kwargs)
+                else:
+                    images_input = self.image_processor(images=images, **kwargs)
+            else:
+                images_input = self.image_processor(images=images, **kwargs)
             feature = images_input["pixel_values"]
             mm_item = MultimodalDataItem.from_dict(
                 {

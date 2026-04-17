@@ -85,6 +85,11 @@ class LlamaDecoderLayer(LlamaDecoderLayer):
         embeds = self.input_layernorm(embeds)
         hidden_states = self.hidden_norm(hidden_states)
 
+        if embeds.dtype != hidden_states.dtype:
+            raise RuntimeError(
+                f"Eagle3 dtype mismatch: embeds.dtype={embeds.dtype}, "
+                f"hidden_states.dtype={hidden_states.dtype}"
+            )
         hidden_states = torch.cat([embeds, hidden_states], dim=-1)
         # Self Attention
         hidden_states = self.self_attn(
@@ -160,6 +165,11 @@ class LlamaModel(nn.Module):
 
         hidden_states = forward_batch.spec_info.hidden_states
         if hidden_states.shape[-1] != embeds.shape[-1]:
+            if hidden_states.dtype != self.fc.weight.dtype:
+                raise RuntimeError(
+                    f"Eagle3 dtype mismatch: hidden_states.dtype={hidden_states.dtype}, "
+                    f"fc.weight.dtype={self.fc.weight.dtype}"
+                )
             hidden_states = self.fc(hidden_states)
 
         # idle batch

@@ -25,6 +25,18 @@ class KimiK2_5VLImageProcessor(SGLangBaseProcessor):
             image_token_id=hf_config.media_placeholder_token_id,
             image_token_regex=re.compile(r"(?:<\|media_pad\|>)+"),
         ).build(_processor)
+        # Required by base class get_mm_data / build_input_ids for EPD mode
+        self.IM_TOKEN_ID = hf_config.media_placeholder_token_id
+        self.IM_START_TOKEN_ID = None
+        self.IM_END_TOKEN_ID = None
+        merge_kernel = getattr(hf_config.vision_config, "merge_kernel_size", [2, 2])
+        self._spatial_merge_size = (
+            merge_kernel[0] if isinstance(merge_kernel, (list, tuple)) else merge_kernel
+        )
+
+    @property
+    def spatial_merge_size(self):
+        return self._spatial_merge_size
 
     async def process_mm_data_async(
         self,

@@ -909,6 +909,28 @@ class ForwardBatch(ForwardBatchDeepSeekMHAMixin):
         tokens_padded = (tokens + rank_size - 1) // rank_size * rank_size
         self._pad_inputs_to_size(model_runner, tokens_padded, self.batch_size)
 
+    def prepare_cp_padding(self, model_runner: ModelRunner):
+        """Pad input_ids and extend_num_tokens to CP size multiples.
+
+        In the PP disagg prefill + CP path, MLP sync is skipped so
+        prepare_mlp_sync_batch never runs. This method performs the
+        subset of padding that CP collective communication requires:
+        input_ids (and related tensors) must be divisible by cp_size.
+        """
+        attn_cp_size = get_attention_cp_size()
+        if attn_cp_size <= 1:
+            return
+        if not self.forward_mode.is_extend():
+            return
+
+        tokens = self.input_ids.shape[0]
+        tokens_padded = ceil_align(tokens, attn_cp_size)
+        if tokens_padded == tokens:
+            return
+
+        self._pad_inputs_to_size(model_runner, tokens_padded, self.batch_size)
+        self.extend_num_tokens = tokens_padded
+
     def post_forward_mlp_sync_batch(self, logits_output: LogitsProcessorOutput):
 
         self.forward_mode = getattr(self, "_original_forward_mode", self.forward_mode)

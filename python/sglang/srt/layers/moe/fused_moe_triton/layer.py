@@ -697,6 +697,7 @@ class FusedMoE(torch.nn.Module):
                     "CompressedTensorsWNA16TritonMoE",
                 ]
             )
+            and "zero" not in weight_name
             else loaded_weight
         )
 
@@ -821,13 +822,16 @@ class FusedMoE(torch.nn.Module):
                 FusedMoeWeightScaleSupported.GROUP.value,
                 FusedMoeWeightScaleSupported.BLOCK.value,
             ]:
-                self._load_model_weight_or_group_weight_scale(
-                    shard_id=shard_id,
-                    shard_dim=shard_dim,
-                    loaded_weight=loaded_weight,
-                    expert_data=expert_data,
-                    tp_rank=tp_rank,
-                )
+                if getattr(param, "load_full_w2", False) and shard_id == "w2":
+                    expert_data.copy_(loaded_weight)
+                else:
+                    self._load_model_weight_or_group_weight_scale(
+                        shard_id=shard_id,
+                        shard_dim=shard_dim,
+                        loaded_weight=loaded_weight,
+                        expert_data=expert_data,
+                        tp_rank=tp_rank,
+                    )
             elif quant_method == FusedMoeWeightScaleSupported.TENSOR.value:
                 # INT4-FP8 (INT4 MoE Weight, FP8 Compute): Adjust FP8 per-tensor scaling number for e4m3fnuz (AMD)
                 if _is_hip and get_bool_env_var("SGLANG_INT4_WEIGHT"):
@@ -916,6 +920,7 @@ class FusedMoE(torch.nn.Module):
                     "CompressedTensorsWNA16TritonMoE",
                 ]
             )
+            and "zero" not in weight_name
             else loaded_weight
         )
 

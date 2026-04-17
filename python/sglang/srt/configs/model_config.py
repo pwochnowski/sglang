@@ -274,6 +274,7 @@ class ModelConfig:
 
         if is_draft_model and self.hf_config.architectures[0] in [
             "DeepseekV3ForCausalLM",
+            "DeepseekV32ForCausalLM",
             "GlmMoeDsaForCausalLM",
         ]:
             self.hf_config.architectures[0] = "DeepseekV3ForCausalLMNextN"
@@ -1016,10 +1017,10 @@ class ModelConfig:
 
         if tf_version < required_version:
             if needs_tf_v5:
-                raise ValueError(
-                    f"Transformers version {tf_version_str} is not supported for model {self.model_path} "
+                logger.warning(
+                    f"Transformers version {tf_version_str} may not be fully supported for model {self.model_path} "
                     f"or model type {self.hf_config.model_type}. "
-                    "Please upgrade transformers to >= 5.0.0."
+                    "Recommended transformers >= 5.0.0, but proceeding with current version."
                 )
         elif not needs_tf_v5:
             logger.warning(

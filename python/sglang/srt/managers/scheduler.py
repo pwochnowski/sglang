@@ -114,6 +114,7 @@ from sglang.srt.managers.io_struct import (
     OpenSessionReqInput,
     OpenSessionReqOutput,
     PauseGenerationReqInput,
+    PostProcessWeightsReqInput,
     ProfileReq,
     ReleaseMemoryOccupationReqInput,
     ResumeMemoryOccupationReqInput,
@@ -952,6 +953,11 @@ class Scheduler(
                 custom_mem_pool=self.token_to_kv_pool_allocator.get_kvcache().maybe_get_custom_mem_pool(),
             )
 
+            # When CP > 1, all CP ranks must agree on poll results so they
+            # enter run_batch together; use the full TP gloo group for consensus.
+            disagg_prefill_gloo_group = (
+                self.tp_cpu_group if self.attn_cp_size > 1 else self.attn_tp_cpu_group
+            )
             self.disagg_prefill_bootstrap_queue = PrefillBootstrapQueue(
                 token_to_kv_pool=self.token_to_kv_pool_allocator.get_kvcache(),
                 draft_token_to_kv_pool=draft_token_to_kv_pool,
@@ -961,7 +967,7 @@ class Scheduler(
                 tp_size=self.tp_size,
                 gpu_id=self.gpu_id,
                 bootstrap_port=self.server_args.disaggregation_bootstrap_port,
-                gloo_group=self.attn_tp_cpu_group,
+                gloo_group=disagg_prefill_gloo_group,
                 max_total_num_tokens=self.max_total_num_tokens,
                 decode_tp_size=self.server_args.disaggregation_decode_tp,
                 decode_dp_size=self.server_args.disaggregation_decode_dp,
@@ -1063,6 +1069,7 @@ class Scheduler(
                 ),
                 (UpdateWeightsFromTensorReqInput, self.update_weights_from_tensor),
                 (UpdateWeightsFromIPCReqInput, self.update_weights_from_ipc),
+                (PostProcessWeightsReqInput, self.post_process_weights),
                 (GetWeightsByNameReqInput, self.get_weights_by_name),
                 (ReleaseMemoryOccupationReqInput, self.release_memory_occupation),
                 (ResumeMemoryOccupationReqInput, self.resume_memory_occupation),
