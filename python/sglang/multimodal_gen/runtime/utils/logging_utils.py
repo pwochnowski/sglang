@@ -359,6 +359,11 @@ def set_uvicorn_logging_configs():
     ] = '[%(asctime)s] %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
     LOGGING_CONFIG["formatters"]["access"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
 
+    # Suppress successful (2xx) access logs to reduce noise
+    from sglang.srt.utils.common import _configure_uvicorn_access_log_filter
+
+    _configure_uvicorn_access_log_filter(LOGGING_CONFIG)
+
 
 def configure_logger(server_args, prefix: str = ""):
     log_format = f"[%(asctime)s{prefix}] %(message)s"

@@ -2450,20 +2450,34 @@ def kill_itself_when_parent_died():
 
 
 class UvicornAccessLogFilter(logging.Filter):
-    """Filter uvicorn access logs by request path.
+    """Filter uvicorn access logs by request path and status code.
 
     Notes:
     - Uvicorn access records usually provide `request_line` like: "GET /metrics HTTP/1.1".
     - We defensively fall back to parsing `record.getMessage()` if needed.
+    - Successful (2xx) responses are suppressed by default to reduce log noise.
     """
 
-    def __init__(self, excluded_path_prefixes=None):
+    def __init__(
+        self, excluded_path_prefixes=None, suppress_successful_requests=True
+    ):
         super().__init__()
         excluded_path_prefixes = excluded_path_prefixes or []
         # Normalize once: drop empty prefixes, stringify, keep as tuple (fast iteration, immutable).
         self.excluded_path_prefixes = tuple(str(p) for p in excluded_path_prefixes if p)
+        self.suppress_successful_requests = suppress_successful_requests
 
     def filter(self, record: logging.LogRecord) -> bool:
+        # Suppress successful (2xx) responses
+        if self.suppress_successful_requests:
+            status_code = getattr(record, "status_code", None)
+            if status_code is not None:
+                try:
+                    if 200 <= int(status_code) < 300:
+                        return False
+                except (ValueError, TypeError):
+                    pass
+
         path = None
 
         request_line = getattr(record, "request_line", None)
@@ -2526,39 +2540,32 @@ def _configure_uvicorn_access_log_filter(
 ):
     """Configure uvicorn access log path filter into uvicorn LOGGING_CONFIG.
 
-    This optionally filters uvicorn access logs (e.g., suppress noisy /metrics polling).
+    This filters uvicorn access logs:
+    - Suppresses successful (2xx) responses to reduce log noise.
+    - Optionally filters by request path prefix (e.g., suppress noisy /metrics polling).
 
     Args:
         uvicorn_logging_config: The dict-like LOGGING_CONFIG from uvicorn.
         server_args: Parsed server args object that may contain:
             - uvicorn_access_log_exclude_prefixes (list[str] | tuple[str] | None)
     """
-    # Optionally filter uvicorn access logs (e.g., suppress noisy /metrics polling).
-    if server_args is None:
-        return
-
     filter_name = "sglang_uvicorn_access_path_filter"
 
-    excluded_prefixes = getattr(
-        server_args, "uvicorn_access_log_exclude_prefixes", None
-    )
-    if not excluded_prefixes:
-        return
-
-    # Normalize: accept list/tuple; treat a single string as one prefix (not an iterable of chars).
-    if isinstance(excluded_prefixes, str):
-        excluded_prefixes = [excluded_prefixes]
-
-    # De-duplicate while keeping order; drop empty prefixes.
-    excluded_prefixes = [p for p in excluded_prefixes if p]
-    excluded_prefixes = list(dict.fromkeys(excluded_prefixes))
-    if not excluded_prefixes:
-        return
+    excluded_prefixes = []
+    if server_args is not None:
+        raw = getattr(server_args, "uvicorn_access_log_exclude_prefixes", None)
+        if raw:
+            # Normalize: accept list/tuple; treat a single string as one prefix (not an iterable of chars).
+            if isinstance(raw, str):
+                raw = [raw]
+            # De-duplicate while keeping order; drop empty prefixes.
+            excluded_prefixes = list(dict.fromkeys(p for p in raw if p))
 
     uvicorn_logging_config.setdefault("filters", {})
     uvicorn_logging_config["filters"][filter_name] = {
         "()": "sglang.srt.utils.common.UvicornAccessLogFilter",
         "excluded_path_prefixes": excluded_prefixes,
+        "suppress_successful_requests": True,
     }
 
     # Attach filter to access handler and/or uvicorn.access logger (best-effort across uvicorn versions).
