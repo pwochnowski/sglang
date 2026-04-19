@@ -117,8 +117,6 @@ from sglang.srt.managers.io_struct import (
     PauseGenerationReqInput,
     PostProcessWeightsReqInput,
     ProfileReqInput,
-    ReleaseMemoryOccupationReqInput,
-    ResumeMemoryOccupationReqInput,
     SendWeightsToRemoteInstanceReqInput,
     SeparateReasoningReqInput,
     SetInternalStateReq,
@@ -1170,26 +1168,22 @@ async def get_weights_by_name(obj: GetWeightsByNameReqInput, request: Request):
         return _create_error_response(e)
 
 
-@app.api_route("/release_memory_occupation", methods=["GET", "POST"])
+@app.post("/gcr_suspend")
 @auth_level(AuthLevel.ADMIN_OPTIONAL)
-async def release_memory_occupation(
-    obj: ReleaseMemoryOccupationReqInput, request: Request
-):
-    """Release GPU memory occupation temporarily."""
+async def gcr_suspend(request: Request):
+    """Suspend all scheduler processes via GCR checkpoint."""
     try:
-        await _global_state.tokenizer_manager.release_memory_occupation(obj, request)
+        await _global_state.tokenizer_manager.gcr_suspend()
     except Exception as e:
         return _create_error_response(e)
 
 
-@app.api_route("/resume_memory_occupation", methods=["GET", "POST"])
+@app.post("/gcr_resume")
 @auth_level(AuthLevel.ADMIN_OPTIONAL)
-async def resume_memory_occupation(
-    obj: ResumeMemoryOccupationReqInput, request: Request
-):
-    """Resume GPU memory occupation."""
+async def gcr_resume(request: Request):
+    """Resume all scheduler processes via GCR restore."""
     try:
-        await _global_state.tokenizer_manager.resume_memory_occupation(obj, request)
+        await _global_state.tokenizer_manager.gcr_resume()
     except Exception as e:
         return _create_error_response(e)
 

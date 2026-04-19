@@ -617,6 +617,7 @@ class ServerArgs:
     num_continuous_decode_steps: int = 1
     delete_ckpt_after_loading: bool = False
     enable_memory_saver: bool = False
+    enable_gcr: bool = False
     enable_weights_cpu_backup: bool = False
     enable_draft_weights_cpu_backup: bool = False
     allow_auto_truncate: bool = False
@@ -4699,6 +4700,11 @@ class ServerArgs:
             "--enable-memory-saver",
             action="store_true",
             help="Allow saving memory using release_memory_occupation and resume_memory_occupation",
+        )
+        parser.add_argument(
+            "--enable-gcr",
+            action="store_true",
+            help="Enable GCR (whole-process checkpoint/restore) for suspending and resuming worker processes",
         )
         parser.add_argument(
             "--enable-weights-cpu-backup",

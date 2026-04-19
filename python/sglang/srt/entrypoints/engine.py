@@ -53,8 +53,6 @@ from sglang.srt.managers.io_struct import (
     MultimodalDataInputFormat,
     OpenSessionReqInput,
     PostProcessWeightsReqInput,
-    ReleaseMemoryOccupationReqInput,
-    ResumeMemoryOccupationReqInput,
     RpcReqInput,
     RpcReqOutput,
     UnloadLoRAAdapterReqInput,
@@ -82,12 +80,12 @@ from sglang.srt.utils import (
     is_cuda,
     kill_process_tree,
     launch_dummy_health_check_server,
+    configure_gcr_subprocess,
     maybe_reindex_device_id,
     numa_utils,
     set_prometheus_multiproc_dir,
     set_ulimit,
 )
-from sglang.srt.utils.torch_memory_saver_adapter import TorchMemorySaverAdapter
 from sglang.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -715,16 +713,14 @@ class Engine(EngineBase):
             self.tokenizer_manager.unload_lora_adapter(obj, None)
         )
 
-    def release_memory_occupation(self, tags: Optional[List[str]] = None):
-        obj = ReleaseMemoryOccupationReqInput(tags=tags)
+    def gcr_suspend(self):
         return self.loop.run_until_complete(
-            self.tokenizer_manager.release_memory_occupation(obj, None)
+            self.tokenizer_manager.gcr_suspend()
         )
 
-    def resume_memory_occupation(self, tags: Optional[List[str]] = None):
-        obj = ResumeMemoryOccupationReqInput(tags=tags)
+    def gcr_resume(self):
         return self.loop.run_until_complete(
-            self.tokenizer_manager.resume_memory_occupation(obj, None)
+            self.tokenizer_manager.gcr_resume()
         )
 
     def freeze_gc(self):
@@ -946,9 +942,6 @@ def _launch_scheduler_processes(
 
     if server_args.dp_size == 1:
         # Launch tensor parallel scheduler processes
-        memory_saver_adapter = TorchMemorySaverAdapter.create(
-            enable=server_args.enable_memory_saver
-        )
         scheduler_pipe_readers = []
 
         pp_size_per_node = max(server_args.pp_size // server_args.nnodes, 1)
@@ -1013,7 +1006,8 @@ def _launch_scheduler_processes(
                             writer,
                         ),
                     )
-                    with memory_saver_adapter.configure_subprocess(), numa_utils.configure_subprocess(
+                    print(f"[GCR-DEBUG] engine.py: about to call configure_gcr_subprocess(enable_gcr={server_args.enable_gcr}) for gpu_id={gpu_id}", flush=True)
+                    with configure_gcr_subprocess(server_args.enable_gcr), numa_utils.configure_subprocess(
                         server_args, gpu_id
                     ):
                         proc.start()
@@ -1114,5 +1108,9 @@ def _launch_subprocesses(
 
     # Get back some info from scheduler to tokenizer_manager
     tokenizer_manager.max_req_input_len = scheduler_infos[0]["max_req_input_len"]
+
+    # Store scheduler PIDs for GCR suspend/resume
+    tokenizer_manager.scheduler_pids = [proc.pid for proc in scheduler_procs]
+    print(f"[GCR-DEBUG] Stored scheduler_pids={tokenizer_manager.scheduler_pids}", flush=True)
 
     return tokenizer_manager, template_manager, scheduler_infos, port_args

@@ -3842,6 +3842,37 @@ def maybe_reindex_device_id(gpu_id: int):
         del os.environ["CUDA_VISIBLE_DEVICES"]
 
 
+@contextmanager
+def configure_gcr_subprocess(enable_gcr: bool):
+    """Set LD_PRELOAD for GCR before spawning a subprocess."""
+    print(f"[GCR-DEBUG] configure_gcr_subprocess called: enable_gcr={enable_gcr}", flush=True)
+    if not enable_gcr:
+        print("[GCR-DEBUG] GCR disabled, skipping LD_PRELOAD", flush=True)
+        yield
+        return
+
+    preload_path = os.environ.get("GCR_PRELOAD_PATH")
+    print(f"[GCR-DEBUG] GCR_PRELOAD_PATH={preload_path!r}", flush=True)
+    if not preload_path:
+        raise RuntimeError(
+            "--enable-gcr requires the GCR_PRELOAD_PATH environment variable "
+            "to be set to the path of the GCR preload library."
+        )
+
+    original_ld_preload = os.environ.get("LD_PRELOAD")
+    os.environ["LD_PRELOAD"] = preload_path
+    print(f"[GCR-DEBUG] Set LD_PRELOAD={preload_path} (was {original_ld_preload!r})", flush=True)
+    logger.debug(f"Set LD_PRELOAD to {preload_path} for GCR")
+
+    try:
+        yield
+    finally:
+        if original_ld_preload is not None:
+            os.environ["LD_PRELOAD"] = original_ld_preload
+        else:
+            os.environ.pop("LD_PRELOAD", None)
+
+
 def get_extend_input_len_swa_limit(
     sliding_window_size: int, chunked_prefill_size: int, page_size: int
 ) -> int:

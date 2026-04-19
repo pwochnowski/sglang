@@ -128,11 +128,11 @@ class HttpServerEngineAdapter(EngineBase):
 
         return self._make_request("generate", payload)
 
-    def release_memory_occupation(self):
-        return self._make_request("release_memory_occupation")
+    def gcr_suspend(self):
+        return self._make_request("gcr_suspend")
 
-    def resume_memory_occupation(self):
-        return self._make_request("resume_memory_occupation")
+    def gcr_resume(self):
+        return self._make_request("gcr_resume")
 
     def flush_cache(self):
         return self._make_request("flush_cache")

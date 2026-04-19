@@ -1549,29 +1549,6 @@ class GetWeightsByNameReqOutput(BaseReq):
     parameter: list
 
 
-@dataclass
-class ReleaseMemoryOccupationReqInput(BaseReq):
-    # Optional tags to identify the memory region, which is primarily used for RL
-    # Currently we only support `weights` and `kv_cache`
-    tags: Optional[List[str]] = None
-
-
-@dataclass
-class ReleaseMemoryOccupationReqOutput(BaseReq):
-    pass
-
-
-@dataclass
-class ResumeMemoryOccupationReqInput(BaseReq):
-    # Optional tags to identify the memory region, which is primarily used for RL
-    # Currently we only support `weights` and `kv_cache`
-    tags: Optional[List[str]] = None
-
-
-@dataclass
-class ResumeMemoryOccupationReqOutput(BaseReq):
-    pass
-
 
 @dataclass
 class CheckWeightsReqInput(BaseReq):

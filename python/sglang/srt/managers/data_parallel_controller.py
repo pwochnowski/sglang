@@ -54,13 +54,13 @@ from sglang.srt.tracing.trace import (
 from sglang.srt.utils import numa_utils
 from sglang.srt.utils.common import (
     bind_port,
+    configure_gcr_subprocess,
     configure_ipv6,
     configure_logger,
     get_zmq_socket,
     kill_itself_when_parent_died,
     maybe_reindex_device_id,
 )
-from sglang.srt.utils.torch_memory_saver_adapter import TorchMemorySaverAdapter
 from sglang.srt.utils.watchdog import Watchdog
 from sglang.utils import TypeBasedDispatcher, get_exception_traceback
 
@@ -398,10 +398,6 @@ class DataParallelController:
         if not server_args.enable_dp_attention:
             logger.info(f"Launch DP{dp_rank} starting at GPU #{base_gpu_id}.")
 
-        memory_saver_adapter = TorchMemorySaverAdapter.create(
-            enable=server_args.enable_memory_saver
-        )
-
         scheduler_pipe_readers = []
 
         pp_size_per_node = max(server_args.pp_size // server_args.nnodes, 1)
@@ -488,7 +484,8 @@ class DataParallelController:
                             writer,
                         ),
                     )
-                    with memory_saver_adapter.configure_subprocess(), numa_utils.configure_subprocess(
+                    print(f"[GCR-DEBUG] data_parallel_controller.py: about to call configure_gcr_subprocess(enable_gcr={server_args.enable_gcr}) for gpu_id={gpu_id}", flush=True)
+                    with configure_gcr_subprocess(server_args.enable_gcr), numa_utils.configure_subprocess(
                         server_args, gpu_id
                     ):
                         proc.start()

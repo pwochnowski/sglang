@@ -15,8 +15,7 @@ from sglang.srt.managers.data_parallel_controller import (
 )
 from sglang.srt.managers.scheduler import run_scheduler_process
 from sglang.srt.server_args import PortArgs, ServerArgs
-from sglang.srt.utils import configure_logger, numa_utils
-from sglang.srt.utils.torch_memory_saver_adapter import TorchMemorySaverAdapter
+from sglang.srt.utils import configure_logger, configure_gcr_subprocess, numa_utils
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +80,6 @@ def launch_scheduler_process_only(
 
     if server_args.dp_size == 1:
         # Single data parallel group - launch TP/PP schedulers
-        memory_saver_adapter = TorchMemorySaverAdapter.create(
-            enable=server_args.enable_memory_saver
-        )
         scheduler_pipe_readers = []
 
         # Calculate TP/PP distribution across nodes
@@ -150,7 +146,8 @@ def launch_scheduler_process_only(
                     ),
                 )
 
-                with memory_saver_adapter.configure_subprocess(), numa_utils.configure_subprocess(
+                print(f"[GCR-DEBUG] scheduler_launcher.py: about to call configure_gcr_subprocess(enable_gcr={server_args.enable_gcr}) for gpu_id={gpu_id}", flush=True)
+                with configure_gcr_subprocess(server_args.enable_gcr), numa_utils.configure_subprocess(
                     server_args, gpu_id
                 ):
                     proc.start()

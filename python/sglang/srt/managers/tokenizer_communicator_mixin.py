@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
+import subprocess
 import time
 import uuid
 from collections import deque
@@ -64,10 +65,6 @@ from sglang.srt.managers.io_struct import (
     ProfileReq,
     ProfileReqOutput,
     ProfileReqType,
-    ReleaseMemoryOccupationReqInput,
-    ReleaseMemoryOccupationReqOutput,
-    ResumeMemoryOccupationReqInput,
-    ResumeMemoryOccupationReqOutput,
     SendWeightsToRemoteInstanceReqInput,
     SendWeightsToRemoteInstanceReqOutput,
     SetInternalStateReq,
@@ -200,12 +197,7 @@ class TokenizerCommunicatorMixin:
         self.get_weights_by_name_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
-        self.release_memory_occupation_communicator = _Communicator(
-            self.send_to_scheduler, server_args.dp_size
-        )
-        self.resume_memory_occupation_communicator = _Communicator(
-            self.send_to_scheduler, server_args.dp_size
-        )
+        self.scheduler_pids: list[int] = []
         self.check_weights_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
@@ -293,14 +285,6 @@ class TokenizerCommunicatorMixin:
                 (
                     GetWeightsByNameReqOutput,
                     self.get_weights_by_name_communicator.handle_recv,
-                ),
-                (
-                    ReleaseMemoryOccupationReqOutput,
-                    self.release_memory_occupation_communicator.handle_recv,
-                ),
-                (
-                    ResumeMemoryOccupationReqOutput,
-                    self.resume_memory_occupation_communicator.handle_recv,
                 ),
                 (
                     CheckWeightsReqOutput,
@@ -881,21 +865,35 @@ class TokenizerCommunicatorMixin:
         else:
             return all_parameters
 
-    async def release_memory_occupation(
+    async def gcr_suspend(
         self: TokenizerManager,
-        obj: ReleaseMemoryOccupationReqInput,
+        obj=None,
         request: Optional[fastapi.Request] = None,
     ):
-        self.auto_create_handle_loop()
-        await self.release_memory_occupation_communicator(obj)
+        """Suspend all scheduler processes via GCR checkpoint."""
+        cmd = ["cr", "-d"]
+        for pid in self.scheduler_pids:
+            cmd += ["-p", str(pid)]
+        print(f"[GCR-DEBUG] gcr_suspend: scheduler_pids={self.scheduler_pids}, cmd={cmd}", flush=True)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, lambda: subprocess.run(cmd, check=True)
+        )
 
-    async def resume_memory_occupation(
+    async def gcr_resume(
         self: TokenizerManager,
-        obj: ResumeMemoryOccupationReqInput,
+        obj=None,
         request: Optional[fastapi.Request] = None,
     ):
-        self.auto_create_handle_loop()
-        await self.resume_memory_occupation_communicator(obj)
+        """Resume all scheduler processes via GCR restore."""
+        cmd = ["cr", "-r"]
+        for pid in self.scheduler_pids:
+            cmd += ["-p", str(pid)]
+        print(f"[GCR-DEBUG] gcr_resume: scheduler_pids={self.scheduler_pids}, cmd={cmd}", flush=True)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, lambda: subprocess.run(cmd, check=True)
+        )
 
     async def check_weights(
         self: TokenizerManager,

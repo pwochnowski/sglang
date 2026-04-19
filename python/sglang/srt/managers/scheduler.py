@@ -116,8 +116,6 @@ from sglang.srt.managers.io_struct import (
     PauseGenerationReqInput,
     PostProcessWeightsReqInput,
     ProfileReq,
-    ReleaseMemoryOccupationReqInput,
-    ResumeMemoryOccupationReqInput,
     RpcReqInput,
     RpcReqOutput,
     SendWeightsToRemoteInstanceReqInput,
@@ -836,11 +834,10 @@ class Scheduler(
             self, watchdog_timeout=self.server_args.watchdog_timeout
         )
 
-        # Init memory saver, profiler and metric stats
+        # Init memory saver adapter (used by model_runner and memory_pool)
         self.memory_saver_adapter = TorchMemorySaverAdapter.create(
             enable=self.server_args.enable_memory_saver
         )
-        self.offload_tags = set()
 
         # Init recv skipper and input blocker
         self.recv_skipper = SchedulerRecvSkipper.maybe_create(self.server_args)
@@ -1073,8 +1070,6 @@ class Scheduler(
                 (UpdateWeightsFromIPCReqInput, self.update_weights_from_ipc),
                 (PostProcessWeightsReqInput, self.post_process_weights),
                 (GetWeightsByNameReqInput, self.get_weights_by_name),
-                (ReleaseMemoryOccupationReqInput, self.release_memory_occupation),
-                (ResumeMemoryOccupationReqInput, self.resume_memory_occupation),
                 (CheckWeightsReqInput, self.check_weights),
                 (SlowDownReqInput, self.slow_down),
                 (ProfileReq, self.profile),
@@ -1378,7 +1373,6 @@ class Scheduler(
                 self.chunked_req is not None
                 or self.dllm_manager.any_staging_reqs()
                 or not self.running_batch.is_empty()
-                or len(self.offload_tags) > 0
             ):
                 self.return_health_check_ct += 1
                 continue

@@ -59,13 +59,13 @@ class EngineBase(ABC):
         pass
 
     @abstractmethod
-    def release_memory_occupation(self):
-        """Release GPU memory occupation temporarily."""
+    def gcr_suspend(self):
+        """Suspend all worker processes via GCR checkpoint."""
         pass
 
     @abstractmethod
-    def resume_memory_occupation(self):
-        """Resume GPU memory occupation which is previously released."""
+    def gcr_resume(self):
+        """Resume all worker processes via GCR restore."""
         pass
 
     @abstractmethod
