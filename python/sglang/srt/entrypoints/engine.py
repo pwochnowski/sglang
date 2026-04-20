@@ -154,7 +154,7 @@ class Engine(EngineBase):
                 kwargs["log_level"] = "error"
             server_args = self.server_args_class(**kwargs)
         self.server_args = server_args
-        logger.info(f"{server_args=}")
+        logger.debug(f"{server_args=}")
 
         # Shutdown the subprocesses automatically when the program exits
         atexit.register(self.shutdown)
@@ -1047,7 +1047,7 @@ def _launch_subprocesses(
     # Allocate ports for inter-process communications
     if port_args is None:
         port_args = PortArgs.init_new(server_args)
-    logger.info(f"{server_args=}")
+    logger.debug(f"{server_args=}")
 
     # Launch scheduler processes
     scheduler_procs, scheduler_pipe_readers = _launch_scheduler_processes(
