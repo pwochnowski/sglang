@@ -239,7 +239,7 @@ class SchedulerMetricsMixin:
 
         msg += f"{graph_backend[self.device]}: {can_run_cuda_graph}"
 
-        logger.info(msg)
+        logger.debug(msg)
 
         if self.enable_metrics:
             self.metrics_collector.increment_realtime_tokens(
@@ -412,7 +412,7 @@ class SchedulerMetricsMixin:
             f"#queue-req: {len(self.waiting_queue)}"
         )
 
-        logger.info(msg)
+        logger.debug(msg)
         if self.enable_metrics:
             # Basics
             self.stats.num_running_reqs = num_running_reqs
