@@ -98,6 +98,8 @@ from sglang.srt.managers.io_struct import (
     FlushCacheReqInput,
     FlushCacheReqOutput,
     FreezeGCReq,
+    LogMemoryReqInput,
+    LogMemoryReqOutput,
     GetInternalStateReq,
     GetInternalStateReqOutput,
     GetLoadReqInput,
@@ -172,6 +174,7 @@ from sglang.srt.managers.scheduler_runtime_checker_mixin import (
 )
 from sglang.srt.managers.scheduler_update_weights_mixin import (
     SchedulerUpdateWeightsMixin,
+    _log_gpu_memory,
 )
 from sglang.srt.managers.session_controller import Session
 from sglang.srt.managers.utils import GenerationBatchResult, validate_input_length
@@ -1074,6 +1077,7 @@ class Scheduler(
                 (SlowDownReqInput, self.slow_down),
                 (ProfileReq, self.profile),
                 (FreezeGCReq, self.handle_freeze_gc),
+                (LogMemoryReqInput, self.handle_log_memory),
                 (GetInternalStateReq, self.get_internal_state),
                 (SetInternalStateReq, self.set_internal_state),
                 (RpcReqInput, self.handle_rpc_request),
@@ -2965,6 +2969,10 @@ class Scheduler(
         freeze_gc("Scheduler")
         self.send_to_detokenizer.send_output(recv_req, recv_req)
         return None
+
+    def handle_log_memory(self, recv_req: LogMemoryReqInput):
+        _log_gpu_memory(recv_req.label, self.gpu_id)
+        return LogMemoryReqOutput()
 
     def handle_dumper_control(self, recv_req: DumperControlReqInput):
         from sglang.srt.debug_utils.dumper import dumper

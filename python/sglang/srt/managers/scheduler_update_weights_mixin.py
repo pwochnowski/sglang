@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Tuple
 
 import torch
 
+from gcr import log_gpu_memory
+
 from sglang.srt.managers.io_struct import (
     CheckWeightsReqInput,
     CheckWeightsReqOutput,
@@ -35,12 +37,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _log_gpu_memory(label: str, gpu_id: int) -> None:
+    log_gpu_memory(label, identifier=f"scheduler gpu={gpu_id}")
+
+
 class SchedulerUpdateWeightsMixin:
 
     def update_weights_from_disk(
         self: Scheduler, recv_req: UpdateWeightFromDiskReqInput
     ):
         """In-place update of the weights from disk."""
+        _log_gpu_memory("before update_weights_from_disk", self.gpu_id)
         success, message = self.tp_worker.update_weights_from_disk(recv_req)
         if success:
             if recv_req.flush_cache:
@@ -48,6 +55,7 @@ class SchedulerUpdateWeightsMixin:
                 assert flush_cache_success, "Cache flush failed after updating weights"
         else:
             logger.error(message)
+        _log_gpu_memory("after update_weights_from_disk", self.gpu_id)
         return UpdateWeightFromDiskReqOutput(success, message, 0)
 
     def init_weights_update_group(
@@ -69,6 +77,7 @@ class SchedulerUpdateWeightsMixin:
         recv_req: UpdateWeightsFromDistributedReqInput,
     ) -> Tuple[bool, str]:
         """Update the online model parameter."""
+        _log_gpu_memory("before update_weights_from_distributed", self.gpu_id)
         success, message = self.tp_worker.update_weights_from_distributed(recv_req)
         if success:
             if recv_req.flush_cache:
@@ -76,12 +85,14 @@ class SchedulerUpdateWeightsMixin:
                 assert flush_cache_success, "Cache flush failed after updating weights"
         else:
             logger.error(message)
+        _log_gpu_memory("after update_weights_from_distributed", self.gpu_id)
         return UpdateWeightsFromDistributedReqOutput(success, message)
 
     def update_weights_from_tensor(
         self: Scheduler, recv_req: UpdateWeightsFromTensorReqInput
     ):
         """Update the online model parameter from tensors."""
+        _log_gpu_memory("before update_weights_from_tensor", self.gpu_id)
         worker = self.draft_worker or self.tp_worker
         success, message = worker.update_weights_from_tensor(recv_req)
         # TODO extract common code b/t update_weights_from_distributed and update_weights_from_tensor later
@@ -92,12 +103,14 @@ class SchedulerUpdateWeightsMixin:
         else:
             logger.error(message)
         torch.distributed.barrier(group=self.tp_cpu_group)
+        _log_gpu_memory("after update_weights_from_tensor", self.gpu_id)
         return UpdateWeightsFromTensorReqOutput(success, message)
 
     def update_weights_from_tensor_vmm(
         self: Scheduler, recv_req: UpdateWeightsFromTensorVMMReqInput
     ):
         """Update weights from a VMM-backed buffer via fd transport over UDS."""
+        _log_gpu_memory("before update_weights_from_tensor_vmm", self.gpu_id)
         worker = self.draft_worker or self.tp_worker
         success, message = worker.update_weights_from_tensor_vmm(recv_req)
         if success:
@@ -107,12 +120,14 @@ class SchedulerUpdateWeightsMixin:
         else:
             logger.error(message)
         torch.distributed.barrier(group=self.tp_cpu_group)
+        _log_gpu_memory("after update_weights_from_tensor_vmm", self.gpu_id)
         return UpdateWeightsFromTensorVMMReqOutput(success, message)
 
     def update_weights_from_ipc(
         self: Scheduler, recv_req: UpdateWeightsFromIPCReqInput
     ):
         """Update the online model parameter from IPC for checkpoint-engine integration."""
+        _log_gpu_memory("before update_weights_from_ipc", self.gpu_id)
         success, message = self.tp_worker.update_weights_from_ipc(recv_req)
         if success:
             if recv_req.flush_cache:
@@ -121,6 +136,7 @@ class SchedulerUpdateWeightsMixin:
         else:
             logger.error(message)
         torch.distributed.barrier(group=self.tp_cpu_group)
+        _log_gpu_memory("after update_weights_from_ipc", self.gpu_id)
         return UpdateWeightsFromIPCReqOutput(success, message)
 
     def post_process_weights(self, recv_req: PostProcessWeightsReqInput):

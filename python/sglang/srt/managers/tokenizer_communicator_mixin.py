@@ -42,6 +42,8 @@ from sglang.srt.managers.io_struct import (
     ExpertDistributionReqType,
     FlushCacheReqInput,
     FlushCacheReqOutput,
+    LogMemoryReqInput,
+    LogMemoryReqOutput,
     GetInternalStateReq,
     GetInternalStateReqOutput,
     GetLoadReqInput,
@@ -207,6 +209,9 @@ class TokenizerCommunicatorMixin:
         self.flush_cache_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
+        self.log_memory_communicator = _Communicator(
+            self.send_to_scheduler, server_args.dp_size
+        )
         self.clear_hicache_storage_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
@@ -342,11 +347,18 @@ class TokenizerCommunicatorMixin:
                     DumperControlReqOutput,
                     self.dumper_control_communicator.handle_recv,
                 ),
+                (
+                    LogMemoryReqOutput,
+                    self.log_memory_communicator.handle_recv,
+                ),
             ]
         )
 
     async def flush_cache(self: TokenizerManager) -> FlushCacheReqOutput:
         return (await self.flush_cache_communicator(FlushCacheReqInput()))[0]
+
+    async def log_scheduler_memory(self: TokenizerManager, label: str = ""):
+        await self.log_memory_communicator(LogMemoryReqInput(label=label))
 
     async def clear_hicache_storage(self: TokenizerManager) -> ClearHiCacheReqOutput:
         """Clear the hierarchical cache storage."""
@@ -871,6 +883,7 @@ class TokenizerCommunicatorMixin:
         request: Optional[fastapi.Request] = None,
     ):
         """Suspend all scheduler processes via GCR checkpoint."""
+        await self.log_scheduler_memory("before gcr_suspend")
         cmd = ["cr", "-d"]
         for pid in self.scheduler_pids:
             cmd += ["-p", str(pid)]
@@ -879,6 +892,7 @@ class TokenizerCommunicatorMixin:
         await loop.run_in_executor(
             None, lambda: subprocess.run(cmd, check=True)
         )
+        await self.log_scheduler_memory("after gcr_suspend")
 
     async def gcr_resume(
         self: TokenizerManager,
@@ -886,6 +900,7 @@ class TokenizerCommunicatorMixin:
         request: Optional[fastapi.Request] = None,
     ):
         """Resume all scheduler processes via GCR restore."""
+        await self.log_scheduler_memory("before gcr_resume")
         cmd = ["cr", "-r"]
         for pid in self.scheduler_pids:
             cmd += ["-p", str(pid)]
@@ -894,6 +909,7 @@ class TokenizerCommunicatorMixin:
         await loop.run_in_executor(
             None, lambda: subprocess.run(cmd, check=True)
         )
+        await self.log_scheduler_memory("after gcr_resume")
 
     async def check_weights(
         self: TokenizerManager,

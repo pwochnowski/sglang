@@ -1235,6 +1235,16 @@ class FlushCacheReqOutput(BaseReq):
 
 
 @dataclass
+class LogMemoryReqInput(BaseReq):
+    label: str = ""
+
+
+@dataclass
+class LogMemoryReqOutput(BaseReq):
+    pass
+
+
+@dataclass
 class AttachHiCacheStorageReqInput(BaseReq):
     """Dynamically attach (enable) HiCache storage backend at runtime.
 
