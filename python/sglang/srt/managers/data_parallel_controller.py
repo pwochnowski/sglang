@@ -597,6 +597,9 @@ def run_data_parallel_controller_process(
                 "status": "ready",
                 "max_total_num_tokens": controller.max_total_num_tokens,
                 "max_req_input_len": controller.max_req_input_len,
+                "scheduler_pids": [
+                    proc.pid for proc in controller.scheduler_procs
+                ],
             }
         )
         if server_args.node_rank == 0:

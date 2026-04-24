@@ -1109,8 +1109,13 @@ def _launch_subprocesses(
     # Get back some info from scheduler to tokenizer_manager
     tokenizer_manager.max_req_input_len = scheduler_infos[0]["max_req_input_len"]
 
-    # Store scheduler PIDs for GCR suspend/resume
-    tokenizer_manager.scheduler_pids = [proc.pid for proc in scheduler_procs]
+    # Store scheduler PIDs for GCR suspend/resume.
+    # When DP > 1, scheduler_procs contains the DP controller process, not the
+    # actual schedulers.  The DP controller sends the real PIDs via the pipe.
+    if "scheduler_pids" in scheduler_infos[0]:
+        tokenizer_manager.scheduler_pids = scheduler_infos[0]["scheduler_pids"]
+    else:
+        tokenizer_manager.scheduler_pids = [proc.pid for proc in scheduler_procs]
     print(f"[GCR-DEBUG] Stored scheduler_pids={tokenizer_manager.scheduler_pids}", flush=True)
 
     return tokenizer_manager, template_manager, scheduler_infos, port_args
