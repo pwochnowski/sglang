@@ -1006,7 +1006,6 @@ def _launch_scheduler_processes(
                             writer,
                         ),
                     )
-                    print(f"[GCR-DEBUG] engine.py: about to call configure_gcr_subprocess(enable_gcr={server_args.enable_gcr}) for gpu_id={gpu_id}", flush=True)
                     with configure_gcr_subprocess(server_args.enable_gcr), numa_utils.configure_subprocess(
                         server_args, gpu_id
                     ):
@@ -1116,6 +1115,5 @@ def _launch_subprocesses(
         tokenizer_manager.scheduler_pids = scheduler_infos[0]["scheduler_pids"]
     else:
         tokenizer_manager.scheduler_pids = [proc.pid for proc in scheduler_procs]
-    print(f"[GCR-DEBUG] Stored scheduler_pids={tokenizer_manager.scheduler_pids}", flush=True)
 
     return tokenizer_manager, template_manager, scheduler_infos, port_args

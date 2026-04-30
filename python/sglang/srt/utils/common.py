@@ -3845,14 +3845,11 @@ def maybe_reindex_device_id(gpu_id: int):
 @contextmanager
 def configure_gcr_subprocess(enable_gcr: bool):
     """Set LD_PRELOAD for GCR before spawning a subprocess."""
-    print(f"[GCR-DEBUG] configure_gcr_subprocess called: enable_gcr={enable_gcr}", flush=True)
     if not enable_gcr:
-        print("[GCR-DEBUG] GCR disabled, skipping LD_PRELOAD", flush=True)
         yield
         return
 
     preload_path = os.environ.get("GCR_PRELOAD_PATH")
-    print(f"[GCR-DEBUG] GCR_PRELOAD_PATH={preload_path!r}", flush=True)
     if not preload_path:
         raise RuntimeError(
             "--enable-gcr requires the GCR_PRELOAD_PATH environment variable "
@@ -3861,7 +3858,6 @@ def configure_gcr_subprocess(enable_gcr: bool):
 
     original_ld_preload = os.environ.get("LD_PRELOAD")
     os.environ["LD_PRELOAD"] = preload_path
-    print(f"[GCR-DEBUG] Set LD_PRELOAD={preload_path} (was {original_ld_preload!r})", flush=True)
     logger.debug(f"Set LD_PRELOAD to {preload_path} for GCR")
 
     try:

@@ -887,7 +887,6 @@ class TokenizerCommunicatorMixin:
         cmd = ["cr", "-d"]
         for pid in self.scheduler_pids:
             cmd += ["-p", str(pid)]
-        print(f"[GCR-DEBUG] gcr_suspend: scheduler_pids={self.scheduler_pids}, cmd={cmd}", flush=True)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None, lambda: subprocess.run(cmd, check=True)
@@ -904,7 +903,6 @@ class TokenizerCommunicatorMixin:
         cmd = ["cr", "-r"]
         for pid in self.scheduler_pids:
             cmd += ["-p", str(pid)]
-        print(f"[GCR-DEBUG] gcr_resume: scheduler_pids={self.scheduler_pids}, cmd={cmd}", flush=True)
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None, lambda: subprocess.run(cmd, check=True)

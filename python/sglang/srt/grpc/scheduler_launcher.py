@@ -146,7 +146,6 @@ def launch_scheduler_process_only(
                     ),
                 )
 
-                print(f"[GCR-DEBUG] scheduler_launcher.py: about to call configure_gcr_subprocess(enable_gcr={server_args.enable_gcr}) for gpu_id={gpu_id}", flush=True)
                 with configure_gcr_subprocess(server_args.enable_gcr), numa_utils.configure_subprocess(
                     server_args, gpu_id
                 ):
