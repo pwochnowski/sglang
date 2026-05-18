@@ -1,6 +1,8 @@
 import logging
 from abc import ABC
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+
+from sglang.srt.constants import GPU_MEMORY_TYPE_KV_CACHE, GPU_MEMORY_TYPE_WEIGHTS
 
 try:
     import torch_memory_saver
@@ -10,6 +12,18 @@ try:
 except ImportError as e:
     import_error = e
     pass
+
+try:
+    import gcr
+    _gcr_ephemeral = gcr.ephemeral
+except ImportError:
+    _gcr_ephemeral = nullcontext
+
+_GCR_EPHEMERAL_TAGS = {
+    GPU_MEMORY_TYPE_KV_CACHE,
+    # TODO: fix this
+    GPU_MEMORY_TYPE_WEIGHTS 
+}
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +78,14 @@ class _TorchMemorySaverAdapterReal(TorchMemorySaverAdapter):
     def configure_subprocess(self):
         return torch_memory_saver.configure_subprocess()
 
+    @contextmanager
     def region(self, tag: str, enable_cpu_backup: bool = False):
-        return _memory_saver.region(tag=tag, enable_cpu_backup=enable_cpu_backup)
+        with _memory_saver.region(tag=tag, enable_cpu_backup=enable_cpu_backup):
+            if tag in _GCR_EPHEMERAL_TAGS:
+                with _gcr_ephemeral():
+                    yield
+            else:
+                yield
 
     def cuda_graph(self, **kwargs):
         return _memory_saver.cuda_graph(**kwargs)
@@ -91,7 +111,11 @@ class _TorchMemorySaverAdapterNoop(TorchMemorySaverAdapter):
 
     @contextmanager
     def region(self, tag: str, enable_cpu_backup: bool = False):
-        yield
+        if tag in _GCR_EPHEMERAL_TAGS:
+            with _gcr_ephemeral():
+                yield
+        else:
+            yield
 
     @contextmanager
     def cuda_graph(self, **kwargs):

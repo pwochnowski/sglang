@@ -991,6 +991,14 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 self.remote_instance_transfer_engine_weight_info = (
                     self.loader.remote_instance_transfer_engine_weight_info
                 )
+        # Buffers (e.g. cos_sin_cache for rotary embeddings) were allocated
+        # inside the ephemeral scope above, so GCR would skip them during
+        # checkpoint and they'd come back zeroed after restore.  Re-allocate
+        # them here (outside the scope) so GCR treats them as persistent.
+        for module in self.model.modules():
+            for key, buf in list(module._buffers.items()):
+                if buf is not None and buf.is_cuda:
+                    module._buffers[key] = buf.clone()
         monkey_patch_vllm_parallel_state(reverse=True)
 
         get_offloader().post_init()
