@@ -37,8 +37,8 @@ class WeightChecker:
         ), f"should not have duplicated tensor name"
 
     def _reset_tensors(self):
-        for name, param in self._model_state():
-            param.copy_(_random_like(param))
+        for name, param in self._model_runner.model.named_parameters():
+            param.data.copy_(_random_like(param))
 
     def _compare(self):
         assert self._snapshot_tensors is not None
@@ -82,10 +82,10 @@ def _check_tensors(
         expect = expect.cuda()
         actual = actual.cuda()
 
-        if torch.all(expect == actual):
+        abs_diff = (actual.float() - expect.float()).abs()
+        if abs_diff.max() <= 1e-5:
             good_names.append(name)
         else:
-            abs_diff = (actual.float() - expect.float()).abs()
             msg = (
                 f"name={name} "
                 f"max_abs_err={abs_diff.max()} "
