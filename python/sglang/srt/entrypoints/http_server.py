@@ -1183,7 +1183,33 @@ async def gcr_suspend(request: Request):
 async def gcr_resume(request: Request):
     """Resume all scheduler processes via GCR restore."""
     try:
-        await _global_state.tokenizer_manager.gcr_resume()
+        try:
+            body = await request.json()
+        except Exception:
+            body = None
+        await _global_state.tokenizer_manager.gcr_resume(body)
+    except Exception as e:
+        return _create_error_response(e)
+
+
+@app.post("/gcr_offload_tag")
+@auth_level(AuthLevel.ADMIN_OPTIONAL)
+async def gcr_offload_tag(request: Request):
+    """Offload specific ephemeral tags to host memory."""
+    try:
+        body = await request.json()
+        await _global_state.tokenizer_manager.gcr_offload_tag(body)
+    except Exception as e:
+        return _create_error_response(e)
+
+
+@app.post("/gcr_restore_tag")
+@auth_level(AuthLevel.ADMIN_OPTIONAL)
+async def gcr_restore_tag(request: Request):
+    """Restore specific ephemeral tags from host memory back to GPU."""
+    try:
+        body = await request.json()
+        await _global_state.tokenizer_manager.gcr_restore_tag(body)
     except Exception as e:
         return _create_error_response(e)
 

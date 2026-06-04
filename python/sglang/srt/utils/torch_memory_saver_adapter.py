@@ -15,15 +15,28 @@ except ImportError as e:
 
 try:
     import gcr
-    _gcr_ephemeral = gcr.ephemeral
+    _has_gcr = True
 except ImportError:
-    _gcr_ephemeral = nullcontext
+    _has_gcr = False
 
-_GCR_EPHEMERAL_TAGS = {
-    GPU_MEMORY_TYPE_KV_CACHE,
-    # TODO: fix this
-    GPU_MEMORY_TYPE_WEIGHTS 
+_GCR_TAG_MAP = {
+    GPU_MEMORY_TYPE_KV_CACHE: 1,
+    GPU_MEMORY_TYPE_WEIGHTS: 2,
 }
+
+_GCR_EPHEMERAL_TYPES = {GPU_MEMORY_TYPE_KV_CACHE}
+_GCR_TAGGED_TYPES = {GPU_MEMORY_TYPE_KV_CACHE, GPU_MEMORY_TYPE_WEIGHTS}
+
+
+@contextmanager
+def _gcr_context(tag: str):
+    if not _has_gcr or tag not in _GCR_TAG_MAP:
+        yield
+        return
+    gcr_tag = _GCR_TAG_MAP[tag]
+    with gcr.ephemeral() if tag in _GCR_EPHEMERAL_TYPES else nullcontext():
+        with gcr.tagged(tag=gcr_tag) if tag in _GCR_TAGGED_TYPES else nullcontext():
+            yield
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +94,8 @@ class _TorchMemorySaverAdapterReal(TorchMemorySaverAdapter):
     @contextmanager
     def region(self, tag: str, enable_cpu_backup: bool = False):
         with _memory_saver.region(tag=tag, enable_cpu_backup=enable_cpu_backup):
-            if tag in _GCR_EPHEMERAL_TAGS:
-                with _gcr_ephemeral():
+            if tag in _GCR_TAG_MAP:
+                with _gcr_context(tag=tag):
                     yield
             else:
                 yield
@@ -111,8 +124,8 @@ class _TorchMemorySaverAdapterNoop(TorchMemorySaverAdapter):
 
     @contextmanager
     def region(self, tag: str, enable_cpu_backup: bool = False):
-        if tag in _GCR_EPHEMERAL_TAGS:
-            with _gcr_ephemeral():
+        if tag in _GCR_TAG_MAP:
+            with _gcr_context(tag=tag):
                 yield
         else:
             yield

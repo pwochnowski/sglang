@@ -887,9 +887,15 @@ class TokenizerCommunicatorMixin:
         cmd = ["cr", "-d"]
         for pid in self.scheduler_pids:
             cmd += ["-p", str(pid)]
+        t0 = time.time()
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None, lambda: subprocess.run(cmd, check=True)
+        )
+        logger.warning(
+            "gcr_suspend: all %d schedulers checkpointed in %.3fs",
+            len(self.scheduler_pids),
+            time.time() - t0,
         )
         await self.log_scheduler_memory("after gcr_suspend")
 
@@ -899,15 +905,77 @@ class TokenizerCommunicatorMixin:
         request: Optional[fastapi.Request] = None,
     ):
         """Resume all scheduler processes via GCR restore."""
+        tags = obj.get("tags") if obj else None
         await self.log_scheduler_memory("before gcr_resume")
+        logger.warning(
+            "gcr_resume: restoring scheduler pids=%s tags=%s", self.scheduler_pids, tags
+        )
         cmd = ["cr", "-r"]
+        if tags:
+            cmd += ["--tags", ",".join(str(t) for t in tags)]
         for pid in self.scheduler_pids:
             cmd += ["-p", str(pid)]
+        t0 = time.time()
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None, lambda: subprocess.run(cmd, check=True)
         )
+        logger.warning(
+            "gcr_resume: all %d schedulers restored in %.3fs",
+            len(self.scheduler_pids),
+            time.time() - t0,
+        )
         await self.log_scheduler_memory("after gcr_resume")
+
+    async def gcr_offload_tag(
+        self: TokenizerManager,
+        obj=None,
+        request: Optional[fastapi.Request] = None,
+    ):
+        """Offload specific ephemeral tags to host memory (processes stay alive)."""
+        tags = obj.get("tags", [1]) if obj else [1]
+        tags_str = ",".join(str(t) for t in tags)
+        logger.warning(
+            "gcr_offload_tag: tags=%s pids=%s", tags_str, self.scheduler_pids
+        )
+        cmd = ["cr", "--offload-tag", tags_str]
+        for pid in self.scheduler_pids:
+            cmd += ["-p", str(pid)]
+        t0 = time.time()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, lambda: subprocess.run(cmd, check=True)
+        )
+        logger.warning(
+            "gcr_offload_tag: tags=%s done in %.3fs",
+            tags_str,
+            time.time() - t0,
+        )
+
+    async def gcr_restore_tag(
+        self: TokenizerManager,
+        obj=None,
+        request: Optional[fastapi.Request] = None,
+    ):
+        """Restore specific ephemeral tags from host memory back to GPU."""
+        tags = obj.get("tags", [1]) if obj else [1]
+        tags_str = ",".join(str(t) for t in tags)
+        logger.warning(
+            "gcr_restore_tag: tags=%s pids=%s", tags_str, self.scheduler_pids
+        )
+        cmd = ["cr", "--restore-tag", tags_str]
+        for pid in self.scheduler_pids:
+            cmd += ["-p", str(pid)]
+        t0 = time.time()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, lambda: subprocess.run(cmd, check=True)
+        )
+        logger.warning(
+            "gcr_restore_tag: tags=%s done in %.3fs",
+            tags_str,
+            time.time() - t0,
+        )
 
     async def check_weights(
         self: TokenizerManager,
