@@ -95,6 +95,7 @@ from sglang.srt.layers.dp_attention import (
     DpPaddingMode,
     get_attention_tp_group,
     initialize_dp_attention,
+    get_attention_tp_size,
     set_dp_buffer_len,
     set_is_extend_in_batch,
 )
@@ -992,6 +993,27 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                     self.loader.remote_instance_transfer_engine_weight_info
                 )
         monkey_patch_vllm_parallel_state(reverse=True)
+
+        # Guard: detect models that haven't been updated for dp_attention.
+        # Models that support dp_attention use LayerCommunicator in their
+        # decoder layers and get_attention_tp_size() for head partitioning.
+        # Without this, the KV cache pool will have mismatched strides and
+        # .view() calls will fail during CUDA graph capture.
+        if (
+            self.server_args.enable_dp_attention
+            and get_attention_tp_size() != self.tp_size
+        ):
+            has_communicator = any(
+                hasattr(m, "layer_communicator") for m in self.model.modules()
+            )
+            if not has_communicator:
+                model_name = type(self.model).__name__
+                logger.warning(
+                    f"Model {model_name} may not support dp_attention. "
+                    f"It has not been updated to use LayerCommunicator and "
+                    f"get_attention_tp_size() for head partitioning. "
+                    f"This may cause tensor stride errors during CUDA graph capture."
+                )
 
         get_offloader().post_init()
 
