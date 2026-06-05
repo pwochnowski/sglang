@@ -246,8 +246,9 @@ class Qwen2DecoderLayer(nn.Module):
         )
 
         self._dp_attention_enabled = is_dp_attention_enabled()
-        input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        post_attention_layernorm = RMSNorm(
+        # Must be self.* attrs so named_parameters() matches checkpoint keys
+        self.input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = RMSNorm(
             config.hidden_size, eps=config.rms_norm_eps
         )
         layer_scatter_modes = LayerScatterModes.init_new(
@@ -259,8 +260,8 @@ class Qwen2DecoderLayer(nn.Module):
         )
         self.layer_communicator = LayerCommunicator(
             layer_scatter_modes=layer_scatter_modes,
-            input_layernorm=input_layernorm,
-            post_attention_layernorm=post_attention_layernorm,
+            input_layernorm=self.input_layernorm,
+            post_attention_layernorm=self.post_attention_layernorm,
         )
 
     def forward(
