@@ -245,6 +245,7 @@ class Qwen2DecoderLayer(nn.Module):
             prefix=add_prefix("mlp", prefix),
         )
 
+        self._dp_attention_enabled = is_dp_attention_enabled()
         input_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         post_attention_layernorm = RMSNorm(
             config.hidden_size, eps=config.rms_norm_eps
@@ -277,7 +278,7 @@ class Qwen2DecoderLayer(nn.Module):
         )
 
         # check if this DP attention rank has any tokens to process
-        if hidden_states.shape[0] != 0:
+        if not self._dp_attention_enabled or hidden_states.shape[0] != 0:
             hidden_states = self.self_attn(
                 positions=positions,
                 hidden_states=hidden_states,
