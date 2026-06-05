@@ -1278,6 +1278,27 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 )
             self._publish_modelexpress_metadata()
 
+        # Guard: detect models that haven't been updated for dp_attention.
+        # Models that support dp_attention use LayerCommunicator in their
+        # decoder layers and get_attention_tp_size() for head partitioning.
+        # Without this, the KV cache pool will have mismatched strides and
+        # .view() calls will fail during CUDA graph capture.
+        if (
+            self.server_args.enable_dp_attention
+            and get_attention_tp_size() != self.tp_size
+        ):
+            has_communicator = any(
+                hasattr(m, "layer_communicator") for m in self.model.modules()
+            )
+            if not has_communicator:
+                model_name = type(self.model).__name__
+                logger.warning(
+                    f"Model {model_name} may not support dp_attention. "
+                    f"It has not been updated to use LayerCommunicator and "
+                    f"get_attention_tp_size() for head partitioning. "
+                    f"This may cause tensor stride errors during CUDA graph capture."
+                )
+
         get_offloader().post_init()
 
         # Register model for layerwise NVTX profiling if enabled
