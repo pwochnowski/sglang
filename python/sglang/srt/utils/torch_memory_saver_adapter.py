@@ -15,7 +15,9 @@ except ImportError as e:
 
 try:
     import gcr
-    _has_gcr = True
+    # The gcr package being importable is not enough — the gcr_* symbols
+    # live in the LD_PRELOAD shim. Without it, calls would crash on dlsym.
+    _has_gcr = gcr.shim_loaded()
 except ImportError:
     _has_gcr = False
 
