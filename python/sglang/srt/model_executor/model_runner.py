@@ -1523,7 +1523,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
             alloc = import_vmm_buffer(fd, buffer_size, device)
             buf = wrap_as_torch_uint8(alloc)
-            logger.info(
+            logger.debug(
                 f"[vmm-weight-recv tp={self.tp_rank}] imported va=0x{alloc.va:x} "
                 f"size={alloc.size} fd={fd} device={device}"
             )
@@ -1542,7 +1542,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             _params = list(self.model.named_parameters())
             for _i in (0, len(_params) // 2, len(_params) - 1):
                 _pname, _p = _params[min(_i, len(_params) - 1)]
-                logger.info(
+                logger.debug(
                     f"[vmm-weight-recv tp={self.tp_rank}] param[{_i}] {_pname} "
                     f"data_ptr=0x{_p.data_ptr():x} shape={list(_p.shape)}"
                 )
@@ -1557,7 +1557,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
             del named_tensors, t, buf
             free_vmm_buffer(alloc, close_fd=True)
-            logger.info(
+            logger.debug(
                 f"[vmm-weight-recv tp={self.tp_rank}] freed vmm buffer va=0x{alloc.va:x}, weights loaded"
             )
 
