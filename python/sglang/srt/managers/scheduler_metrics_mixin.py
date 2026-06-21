@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
+import os
 import time
 from collections import defaultdict
 from contextlib import contextmanager
@@ -18,6 +20,8 @@ from sglang.srt.managers.io_struct import (
     GetLoadsReqOutput,
     LoRAMetrics,
     MemoryMetrics,
+    MemorySnapshotReqInput,
+    MemorySnapshotReqOutput,
     QueueMetrics,
     SpeculativeMetrics,
 )
@@ -795,6 +799,100 @@ class SchedulerMetricsMixin:
             lora=lora,
             disaggregation=disaggregation,
             queues=queues,
+        )
+
+    def dump_memory_snapshot(
+        self: Scheduler, req: MemorySnapshotReqInput
+    ) -> MemorySnapshotReqOutput:
+        """Dump a per-rank GPU memory snapshot for RL memory tracing.
+
+        Runs on every scheduler rank. Each rank writes its own torch snapshot
+        pickle sidecar plus one scalar jsonl line under ``out_dir``, and returns
+        a per-rank ack with the same scalars. Raw numbers only; offline tooling
+        does the bucket attribution.
+        """
+        import torch
+
+        gpu_id = self.gpu_id
+        snapshot = req.snapshot
+        iteration = req.iter
+        out_dir = req.out_dir or os.environ.get("SLIME_MEMTRACE_DIR", "mem_trace")
+
+        snap_file = f"torchsnap_inference_rank{gpu_id}_{snapshot}_iter{iteration}.pkl"
+        nvml_used = 0
+        torch_reserved = 0
+        torch_allocated = 0
+        kv_pool_bytes = 0
+        memory_saver = bool(getattr(self.server_args, "enable_memory_saver", False))
+        success = True
+        message = ""
+
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+
+            device = torch.cuda.current_device()
+            free_bytes, total_bytes = torch.cuda.mem_get_info(device)
+            nvml_used = int(total_bytes - free_bytes)
+            torch_reserved = int(torch.cuda.memory_reserved(device))
+            torch_allocated = int(torch.cuda.memory_allocated(device))
+
+            try:
+                kv_pool_bytes = int(
+                    self.token_to_kv_pool_allocator.get_kvcache().mem_usage * 1e9
+                )
+            except AttributeError:
+                kv_pool_bytes = 0
+
+            snap_path = os.path.join(out_dir, snap_file)
+            try:
+                torch.cuda.memory._dump_snapshot(snap_path)
+            except Exception as e:
+                # _record_memory_history was not enabled on this rank.
+                snap_file = ""
+                message = f"snapshot dump failed: {e}"
+
+            line = {
+                "role": "inference",
+                "rank": gpu_id,
+                "tp_rank": self.tp_rank,
+                "dp_rank": self.dp_rank,
+                "pp_rank": self.pp_rank,
+                "gpu_id": gpu_id,
+                "snapshot": snapshot,
+                "iter": iteration,
+                "idle_comm": req.idle_comm,
+                "nvml_used": nvml_used,
+                "torch_reserved": torch_reserved,
+                "torch_allocated": torch_allocated,
+                "kv_pool_bytes": kv_pool_bytes,
+                "kv_alloc_path": "torch",
+                "memory_saver": memory_saver,
+                "snap_file": snap_file,
+                "warmup": bool(req.warmup),
+            }
+            jsonl_path = os.path.join(out_dir, f"mem_trace_inference_rank{gpu_id}.jsonl")
+            with open(jsonl_path, "a") as f:
+                f.write(json.dumps(line) + "\n")
+        except Exception as e:
+            success = False
+            message = f"dump_memory_snapshot failed: {e}"
+            logger.warning(message)
+
+        return MemorySnapshotReqOutput(
+            success=success,
+            message=message,
+            snap_file=snap_file,
+            rank=gpu_id,
+            tp_rank=self.tp_rank,
+            dp_rank=self.dp_rank,
+            pp_rank=self.pp_rank,
+            gpu_id=gpu_id,
+            nvml_used=nvml_used,
+            torch_reserved=torch_reserved,
+            torch_allocated=torch_allocated,
+            kv_pool_bytes=kv_pool_bytes,
+            kv_alloc_path="torch",
+            memory_saver=memory_saver,
         )
 
     @contextmanager

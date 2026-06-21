@@ -1378,6 +1378,30 @@ async def continue_generation(obj: ContinueGenerationReqInput, request: Request)
     )
 
 
+@app.post("/dump_memory_snapshot")
+@auth_level(AuthLevel.ADMIN_OPTIONAL)
+async def dump_memory_snapshot(request: Request):
+    """Dump a per-rank GPU memory snapshot on every scheduler (RL memory tracing)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    results = await _global_state.tokenizer_manager.dump_memory_snapshot(
+        snapshot=body.get("snapshot", "snapshot"),
+        iter=body.get("iter", -1),
+        idle_comm=body.get("idle_comm", "none"),
+        out_dir=body.get("out_dir", ""),
+        warmup=body.get("warmup", False),
+    )
+    return ORJSONResponse(
+        content={
+            "status": "ok",
+            "results": [dataclasses.asdict(r) for r in results],
+        },
+        status_code=200,
+    )
+
+
 ##### OpenAI-compatible API endpoints #####
 
 

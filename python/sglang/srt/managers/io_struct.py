@@ -2022,6 +2022,40 @@ class GetLoadsReqOutput(BaseReq):
 
 
 @dataclass
+class MemorySnapshotReqInput(BaseReq):
+    """Request a per-rank GPU memory snapshot (for RL memory tracing).
+
+    Each scheduler rank dumps its own ``torch.cuda.memory._snapshot()`` sidecar
+    and appends one scalar jsonl line under ``out_dir``. The HTTP response is a
+    per-rank ack with the same scalars.
+    """
+
+    snapshot: str = "snapshot"
+    iter: int = -1
+    idle_comm: str = "none"
+    out_dir: str = ""
+    warmup: bool = False
+
+
+@dataclass
+class MemorySnapshotReqOutput(BaseReq):
+    success: bool = True
+    message: str = ""
+    snap_file: str = ""
+    rank: int = 0
+    tp_rank: int = 0
+    dp_rank: int = 0
+    pp_rank: int = 0
+    gpu_id: int = 0
+    nvml_used: int = 0
+    torch_reserved: int = 0
+    torch_allocated: int = 0
+    kv_pool_bytes: int = 0
+    kv_alloc_path: str = "torch"
+    memory_saver: bool = False
+
+
+@dataclass
 class WatchLoadUpdateReq(BaseReq):
     loads: List[GetLoadReqOutput]
 

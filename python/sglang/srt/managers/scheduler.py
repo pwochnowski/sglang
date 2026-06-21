@@ -111,6 +111,8 @@ from sglang.srt.managers.io_struct import (
     LoadLoRAAdapterFromTensorsReqOutput,
     LoadLoRAAdapterReqInput,
     LoadLoRAAdapterReqOutput,
+    MemorySnapshotReqInput,
+    MemorySnapshotReqOutput,
     OpenSessionReqInput,
     OpenSessionReqOutput,
     PauseGenerationReqInput,
@@ -280,6 +282,16 @@ class Scheduler(
         dp_rank: Optional[int],
     ):
         self.is_initializing = True
+
+        # RL memory tracing: enable allocation-history recording before any large
+        # allocation so every block carries an alloc stack for offline bucket
+        # attribution. Only records allocations made after this call.
+        if os.environ.get("SLIME_MEMTRACE") == "1":
+            try:
+                torch.cuda.memory._record_memory_history(max_entries=100000)
+            except Exception as e:
+                logger.warning(f"SLIME_MEMTRACE: failed to enable memory history: {e}")
+
         self.init_soft_watchdog(server_args)
 
         # Parse args
@@ -1091,6 +1103,7 @@ class Scheduler(
                 (UnloadLoRAAdapterReqInput, self.unload_lora_adapter),
                 (GetLoadReqInput, self.get_load),
                 (GetLoadsReqInput, self.get_loads),
+                (MemorySnapshotReqInput, self.dump_memory_snapshot),
                 (PauseGenerationReqInput, self.pause_generation),
                 (ContinueGenerationReqInput, self.continue_generation),
                 (DumperControlReqInput, self.handle_dumper_control),

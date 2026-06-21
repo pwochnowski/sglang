@@ -57,6 +57,8 @@ from sglang.srt.managers.io_struct import (
     LoadLoRAAdapterFromTensorsReqOutput,
     LoadLoRAAdapterReqInput,
     LoadLoRAAdapterReqOutput,
+    MemorySnapshotReqInput,
+    MemorySnapshotReqOutput,
     LoRAUpdateOutput,
     OpenSessionReqInput,
     PostProcessWeightsReqInput,
@@ -248,6 +250,9 @@ class TokenizerCommunicatorMixin:
         self.dumper_control_communicator = _Communicator(
             self.send_to_scheduler, server_args.dp_size
         )
+        self.memory_snapshot_communicator = _Communicator(
+            self.send_to_scheduler, server_args.dp_size
+        )
 
         self._result_dispatcher += self._get_communicator_dispatcher()
 
@@ -357,6 +362,10 @@ class TokenizerCommunicatorMixin:
                 (
                     DumperControlReqOutput,
                     self.dumper_control_communicator.handle_recv,
+                ),
+                (
+                    MemorySnapshotReqOutput,
+                    self.memory_snapshot_communicator.handle_recv,
                 ),
             ]
         )
@@ -965,6 +974,28 @@ class TokenizerCommunicatorMixin:
             results = [r for r in results if r.dp_rank == dp_rank]
 
         return results
+
+    async def dump_memory_snapshot(
+        self: TokenizerManager,
+        snapshot: str = "snapshot",
+        iter: int = -1,
+        idle_comm: str = "none",
+        out_dir: str = "",
+        warmup: bool = False,
+    ) -> List[MemorySnapshotReqOutput]:
+        """Broadcast a per-rank GPU memory snapshot request to all schedulers.
+
+        Each scheduler rank writes its own torch snapshot sidecar + jsonl line
+        on disk; the returned acks come from the socket-owning ranks.
+        """
+        req = MemorySnapshotReqInput(
+            snapshot=snapshot,
+            iter=iter,
+            idle_comm=idle_comm,
+            out_dir=out_dir,
+            warmup=warmup,
+        )
+        return await self.memory_snapshot_communicator(req)
 
     async def open_session(
         self, obj: OpenSessionReqInput, request: Optional[fastapi.Request] = None
